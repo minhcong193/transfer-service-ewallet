@@ -1,0 +1,94 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<databaseChangeLog
+        xmlns="http://www.liquibase.org/xml/ns/dbchangelog"
+        xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+        xsi:schemaLocation="http://www.liquibase.org/xml/ns/dbchangelog
+        http://www.liquibase.org/xml/ns/dbchangelog/dbchangelog-latest.xsd">
+
+    <changeSet id="00000005-1" author="minhtc">
+        <preConditions onFail="MARK_RAN">
+            <not>
+                <tableExists tableName="outbox_event"/>
+            </not>
+        </preConditions>
+
+        <createTable tableName="outbox_event">
+            <column name="id" type="${uuidType}">
+                <constraints primaryKey="true" nullable="false"/>
+            </column>
+            <column name="created_at" type="${dateTimeType}">
+                <constraints nullable="false"/>
+            </column>
+            <column name="updated_at" type="${dateTimeType}">
+                <constraints nullable="false"/>
+            </column>
+            <column name="version" type="bigint"/>
+
+            <column name="aggregate_type" type="varchar(100)">
+                <constraints nullable="false"/>
+            </column>
+
+            <column name="aggregate_id" type="${uuidType}">
+                <constraints nullable="false"/>
+            </column>
+
+            <column name="event_type" type="varchar(100)">
+                <constraints nullable="false"/>
+            </column>
+
+            <column name="payload" type="jsonb">
+                <constraints nullable="false"/>
+            </column>
+
+            <column name="status" type="varchar(50)">
+                <constraints nullable="false"/>
+            </column>
+
+            <column name="retry_count" type="int" defaultValueNumeric="0">
+                <constraints nullable="false"/>
+            </column>
+
+            <column name="next_retry_at" type="${dateTimeType}"/>
+            <column name="published_at" type="${dateTimeType}"/>
+        </createTable>
+    </changeSet>
+
+    <changeSet id="00000005-2" author="minhtc">
+        <preConditions onFail="MARK_RAN">
+            <not>
+                <indexExists indexName="idx_outbox_event_status_next_retry_at" tableName="outbox_event"/>
+            </not>
+        </preConditions>
+
+        <createIndex indexName="idx_outbox_event_status_next_retry_at" tableName="outbox_event">
+            <column name="status"/>
+            <column name="next_retry_at"/>
+        </createIndex>
+    </changeSet>
+
+    <changeSet id="00000005-3" author="minhtc">
+        <preConditions onFail="MARK_RAN">
+            <not>
+                <indexExists indexName="idx_outbox_event_aggregate" tableName="outbox_event"/>
+            </not>
+        </preConditions>
+
+        <createIndex indexName="idx_outbox_event_aggregate" tableName="outbox_event">
+            <column name="aggregate_type"/>
+            <column name="aggregate_id"/>
+        </createIndex>
+    </changeSet>
+
+    <changeSet id="00000005-4" author="minhtc">
+        <preConditions onFail="MARK_RAN">
+            <not>
+                <indexExists indexName="idx_outbox_event_event_type" tableName="outbox_event"/>
+            </not>
+        </preConditions>
+
+        <createIndex indexName="idx_outbox_event_event_type" tableName="outbox_event">
+            <column name="event_type"/>
+        </createIndex>
+    </changeSet>
+
+</databaseChangeLog>

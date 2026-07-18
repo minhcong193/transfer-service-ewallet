@@ -1,0 +1,118 @@
+spring:
+  application:
+    name: transfer-service
+  datasource:
+    url: ${SPRING_DATASOURCE_URL:jdbc:postgresql://localhost:5432/postgres}
+    username: ${SPRING_DATASOURCE_USERNAME:postgres}
+    password: ${SPRING_DATASOURCE_PASSWORD:123}
+    driver-class-name: org.postgresql.Driver
+
+    hikari:
+      pool-name: MonitoringServiceHikariPool
+      maximum-pool-size: 5
+      minimum-idle: 1
+      connection-timeout: 30000
+      idle-timeout: 600000
+      max-lifetime: 1800000
+  jpa:
+    # In câu lệnh SQL ra console để debug
+    show-sql: true
+    # Sử dụng Dialect chuẩn của PostgreSQL để Hibernate tối ưu hóa cú pháp SQL
+    database-platform: org.hibernate.dialect.PostgreSQLDialect
+    properties:
+      hibernate:
+        # Định dạng SQL cho dễ đọc
+        format_sql: true
+        order_by:
+          # Đảm bảo các giá trị NULL nằm cuối cùng khi thực hiện sắp xếp
+          default_null_ordering: last
+        cache:
+          # Tắt bộ nhớ đệm cấp 2 (L2 Cache) của Hibernate.
+          # Nếu bạn muốn dùng Redis làm L2 Cache cho Hibernate, cần cấu hình riêng.
+          use_second_level_cache: false
+          region:
+            factory_class: org.hibernate.cache.ehcache.EhCacheRegionFactory
+        jdbc:
+          # Thay vì gửi 500 câu lệnh INSERT riêng lẻ xuống Database,
+          # Hibernate sẽ gom chúng thành 1 gói (batch) để gửi 1 lần.
+          batch_size: 500
+          time_zone: GMT+7
+        # order_inserts / order_updates: Sắp xếp các câu lệnh SQL
+        # theo thứ tự bảng để tối ưu hóa khả năng gom nhóm (batching) ở trên
+        order_inserts: true
+        order_updates: true
+  liquibase:
+    enabled: true
+    change-log: classpath:liquibase/master.xml
+  kafka:
+    bootstrap-servers: ${KAFKA_BOOTSTRAP_SERVERS:localhost:19092,localhost:29092}
+    producer:
+      key-serializer: org.apache.kafka.common.serialization.StringSerializer
+      value-serializer: org.springframework.kafka.support.serializer.JsonSerializer
+
+      acks: all
+      retries: 3
+
+      properties:
+        spring.json.add.type.headers: false
+        enable.idempotence: true
+        delivery.timeout.ms: 30000
+        request.timeout.ms: 10000
+        linger.ms: 50
+
+  security:
+    oauth2:
+      resourceserver:
+        jwt:
+          issuer-uri: ${KEYCLOAK_ISSUER_URI:https://auth.minhtc.io.vn/realms/ewallet}
+          jwk-set-uri: ${KEYCLOAK_JWK_SET_URI:https://auth.minhtc.io.vn/realms/ewallet/protocol/openid-connect/certs}
+
+app:
+  kafka:
+    topics:
+      security-events: ${SECURITY_EVENTS_TOPIC:security-events}
+  r2:
+    endpoint: ${S3_API_ENDPOINT}
+    access-key: ${R2_ACCESS_KEY_ID}
+    secret-key: ${R2_SECRET_ACCESS_KEY}
+    region: "auto" # Mặc dù R2 không có region, SDK vẫn cần giá trị này
+    bucket-name: "ewallet-data"
+  otp:
+    ttl: 5m
+    max-attempts: 5
+    resend-cooldown: 60s
+    max-resends: 3
+    daily-limit: 20
+    hmac-secret: ${OTP_HMAC_SECRET}
+  clients:
+    wallet:
+      base-url: ${WALLET_SERVICE_URI:http://localhost:8083}
+      connect-timeout: 3s
+      read-timeout: 10s
+      service-token: ${WALLET_SERVICE_TOKEN:}
+logging:
+  level:
+    root: INFO
+    minhtc.vn.monitoring: DEBUG
+    org.springframework.kafka: INFO
+    org.springframework.security: INFO
+
+management:
+  endpoints:
+    web:
+      exposure:
+        include: health,info
+
+  endpoint:
+    health:
+      probes:
+        enabled: true
+      show-details: always
+
+  health:
+    readinessstate:
+      enabled: true
+    livenessstate:
+      enabled: true
+server:
+  port: 8084

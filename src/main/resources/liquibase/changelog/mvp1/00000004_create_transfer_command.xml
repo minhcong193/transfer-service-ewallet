@@ -1,0 +1,106 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<databaseChangeLog
+        xmlns="http://www.liquibase.org/xml/ns/dbchangelog"
+        xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+        xsi:schemaLocation="http://www.liquibase.org/xml/ns/dbchangelog
+        http://www.liquibase.org/xml/ns/dbchangelog/dbchangelog-latest.xsd">
+
+    <changeSet id="00000004-1" author="minhtc">
+        <preConditions onFail="MARK_RAN">
+            <not>
+                <tableExists tableName="transfer_command"/>
+            </not>
+        </preConditions>
+
+        <createTable tableName="transfer_command">
+            <column name="id" type="${uuidType}">
+                <constraints primaryKey="true" nullable="false"/>
+            </column>
+            <column name="created_at" type="${dateTimeType}">
+                <constraints nullable="false"/>
+            </column>
+            <column name="updated_at" type="${dateTimeType}">
+                <constraints nullable="false"/>
+            </column>
+            <column name="version" type="bigint"/>
+
+            <column name="transfer_id" type="${uuidType}">
+                <constraints nullable="false"/>
+            </column>
+
+            <column name="command_type" type="varchar(50)">
+                <constraints nullable="false"/>
+            </column>
+
+            <column name="idempotency_key" type="varchar(255)">
+                <constraints nullable="false"/>
+            </column>
+
+            <column name="request_hash" type="varchar(255)">
+                <constraints nullable="false"/>
+            </column>
+
+            <column name="status" type="varchar(50)">
+                <constraints nullable="false"/>
+            </column>
+
+            <column name="response_payload" type="jsonb"/>
+
+            <column name="failure_code" type="varchar(100)"/>
+            <column name="failure_message" type="varchar(1000)"/>
+        </createTable>
+    </changeSet>
+
+    <changeSet id="00000004-2" author="minhtc">
+        <preConditions onFail="MARK_RAN">
+            <not>
+                <foreignKeyConstraintExists foreignKeyName="fk_transfer_command_transfer"/>
+            </not>
+        </preConditions>
+
+        <addForeignKeyConstraint
+                baseTableName="transfer_command"
+                baseColumnNames="transfer_id"
+                referencedTableName="transfer"
+                referencedColumnNames="id"
+                constraintName="fk_transfer_command_transfer"/>
+    </changeSet>
+
+    <changeSet id="00000004-3" author="minhtc">
+        <preConditions onFail="MARK_RAN">
+            <not>
+                <indexExists indexName="uk_transfer_command_idempotency" tableName="transfer_command"/>
+            </not>
+        </preConditions>
+
+        <addUniqueConstraint
+                tableName="transfer_command"
+                columnNames="transfer_id, command_type, idempotency_key"
+                constraintName="uk_transfer_command_idempotency"/>
+    </changeSet>
+
+    <changeSet id="00000004-4" author="minhtc">
+        <preConditions onFail="MARK_RAN">
+            <not>
+                <indexExists indexName="idx_transfer_command_transfer_id" tableName="transfer_command"/>
+            </not>
+        </preConditions>
+
+        <createIndex indexName="idx_transfer_command_transfer_id" tableName="transfer_command">
+            <column name="transfer_id"/>
+        </createIndex>
+    </changeSet>
+
+    <changeSet id="00000004-5" author="minhtc">
+        <preConditions onFail="MARK_RAN">
+            <not>
+                <indexExists indexName="idx_transfer_command_status" tableName="transfer_command"/>
+            </not>
+        </preConditions>
+
+        <createIndex indexName="idx_transfer_command_status" tableName="transfer_command">
+            <column name="status"/>
+        </createIndex>
+    </changeSet>
+
+</databaseChangeLog>

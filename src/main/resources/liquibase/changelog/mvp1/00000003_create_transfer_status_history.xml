@@ -1,0 +1,81 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<databaseChangeLog
+        xmlns="http://www.liquibase.org/xml/ns/dbchangelog"
+        xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+        xsi:schemaLocation="http://www.liquibase.org/xml/ns/dbchangelog
+        http://www.liquibase.org/xml/ns/dbchangelog/dbchangelog-latest.xsd">
+
+    <changeSet id="00000003-1" author="minhtc">
+        <preConditions onFail="MARK_RAN">
+            <not>
+                <tableExists tableName="transfer_status_history"/>
+            </not>
+        </preConditions>
+
+        <createTable tableName="transfer_status_history">
+            <column name="id" type="${uuidType}">
+                <constraints primaryKey="true" nullable="false"/>
+            </column>
+            <column name="created_at" type="${dateTimeType}">
+                <constraints nullable="false"/>
+            </column>
+            <column name="updated_at" type="${dateTimeType}">
+                <constraints nullable="false"/>
+            </column>
+            <column name="version" type="bigint"/>
+
+            <column name="transfer_id" type="${uuidType}">
+                <constraints nullable="false"/>
+            </column>
+
+            <column name="from_status" type="varchar(50)"/>
+            <column name="to_status" type="varchar(50)">
+                <constraints nullable="false"/>
+            </column>
+
+            <column name="reason_code" type="varchar(100)"/>
+            <column name="reason_message" type="varchar(1000)"/>
+            <column name="correlation_id" type="varchar(100)"/>
+        </createTable>
+    </changeSet>
+
+    <changeSet id="00000003-2" author="minhtc">
+        <preConditions onFail="MARK_RAN">
+            <not>
+                <foreignKeyConstraintExists foreignKeyName="fk_transfer_status_history_transfer"/>
+            </not>
+        </preConditions>
+
+        <addForeignKeyConstraint
+                baseTableName="transfer_status_history"
+                baseColumnNames="transfer_id"
+                referencedTableName="transfer"
+                referencedColumnNames="id"
+                constraintName="fk_transfer_status_history_transfer"/>
+    </changeSet>
+
+    <changeSet id="00000003-3" author="minhtc">
+        <preConditions onFail="MARK_RAN">
+            <not>
+                <indexExists indexName="idx_transfer_status_history_transfer_id" tableName="transfer_status_history"/>
+            </not>
+        </preConditions>
+
+        <createIndex indexName="idx_transfer_status_history_transfer_id" tableName="transfer_status_history">
+            <column name="transfer_id"/>
+        </createIndex>
+    </changeSet>
+
+    <changeSet id="00000003-4" author="minhtc">
+        <preConditions onFail="MARK_RAN">
+            <not>
+                <indexExists indexName="idx_transfer_status_history_correlation_id" tableName="transfer_status_history"/>
+            </not>
+        </preConditions>
+
+        <createIndex indexName="idx_transfer_status_history_correlation_id" tableName="transfer_status_history">
+            <column name="correlation_id"/>
+        </createIndex>
+    </changeSet>
+
+</databaseChangeLog>
