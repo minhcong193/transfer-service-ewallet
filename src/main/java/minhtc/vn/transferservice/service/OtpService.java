@@ -1,12 +1,16 @@
 package minhtc.vn.transferservice.service;
 
+
+import minhtc.vn.transferservice.dto.request.OtpChallenge;
+import minhtc.vn.transferservice.dto.response.OtpVerificationResult;
+
 import java.util.UUID;
 
 public interface OtpService {
 
-    OtpChallengeResult createOtp(
+    OtpChallenge createOtp(
             UUID transferId,
-            String ownerKeycloakUserId
+            UUID ownerKeycloakUserId
     );
 
     OtpVerificationResult verifyOtp(
@@ -14,9 +18,9 @@ public interface OtpService {
             String otp
     );
 
-    OtpChallengeResult resendOtp(
+    OtpChallenge resendOtp(
             UUID transferId,
-            String ownerKeycloakUserId
+            UUID ownerKeycloakUserId
     );
 
     void invalidateOtp(UUID transferId);

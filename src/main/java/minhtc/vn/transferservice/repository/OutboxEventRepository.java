@@ -15,4 +15,6 @@ public interface OutboxEventRepository
             OutboxStatus status,
             LocalDateTime now
     );
+
+    boolean existsByEventId(UUID eventId);
 }

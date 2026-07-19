@@ -8,8 +8,7 @@ import java.time.Duration;
 public record WalletClientProperties(
         String baseUrl,
         Duration connectTimeout,
-        Duration readTimeout,
-        String serviceToken
+        Duration readTimeout
 ) {
 
     public WalletClientProperties {

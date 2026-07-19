@@ -8,11 +8,11 @@
     <changeSet id="00000004-1" author="minhtc">
         <preConditions onFail="MARK_RAN">
             <not>
-                <tableExists tableName="transfer_command"/>
+                <tableExists tableName="transfer_commands"/>
             </not>
         </preConditions>
 
-        <createTable tableName="transfer_command">
+        <createTable tableName="transfer_commands">
             <column name="id" type="${uuidType}">
                 <constraints primaryKey="true" nullable="false"/>
             </column>
@@ -24,30 +24,18 @@
             </column>
             <column name="version" type="bigint"/>
 
-            <column name="transfer_id" type="${uuidType}">
+            <column name="transfer_id" type="${uuidType}"/>
+            <column name="command_type" type="varchar(255)"/>
+            <column name="idempotency_key" type="varchar(255)"/>
+            <column name="request_hash" type="varchar(255)"/>
+            <column name="status" type="varchar(255)"/>
+            <column name="response_json" type="jsonb"/>
+            <column name="response_status" type="integer"/>
+            <column name="error_code" type="varchar(100)"/>
+            <column name="error_message" type="varchar(500)"/>
+            <column name="owner_keycloak_user_id" type="${uuidType}">
                 <constraints nullable="false"/>
             </column>
-
-            <column name="command_type" type="varchar(50)">
-                <constraints nullable="false"/>
-            </column>
-
-            <column name="idempotency_key" type="varchar(255)">
-                <constraints nullable="false"/>
-            </column>
-
-            <column name="request_hash" type="varchar(255)">
-                <constraints nullable="false"/>
-            </column>
-
-            <column name="status" type="varchar(50)">
-                <constraints nullable="false"/>
-            </column>
-
-            <column name="response_payload" type="jsonb"/>
-
-            <column name="failure_code" type="varchar(100)"/>
-            <column name="failure_message" type="varchar(1000)"/>
         </createTable>
     </changeSet>
 
@@ -59,9 +47,9 @@
         </preConditions>
 
         <addForeignKeyConstraint
-                baseTableName="transfer_command"
+                baseTableName="transfer_commands"
                 baseColumnNames="transfer_id"
-                referencedTableName="transfer"
+                referencedTableName="transfers"
                 referencedColumnNames="id"
                 constraintName="fk_transfer_command_transfer"/>
     </changeSet>
@@ -69,36 +57,23 @@
     <changeSet id="00000004-3" author="minhtc">
         <preConditions onFail="MARK_RAN">
             <not>
-                <indexExists indexName="uk_transfer_command_idempotency" tableName="transfer_command"/>
+                <indexExists indexName="idx_transfer_command_transfer_id" tableName="transfer_commands"/>
             </not>
         </preConditions>
 
-        <addUniqueConstraint
-                tableName="transfer_command"
-                columnNames="transfer_id, command_type, idempotency_key"
-                constraintName="uk_transfer_command_idempotency"/>
+        <createIndex indexName="idx_transfer_command_transfer_id" tableName="transfer_commands">
+            <column name="transfer_id"/>
+        </createIndex>
     </changeSet>
 
     <changeSet id="00000004-4" author="minhtc">
         <preConditions onFail="MARK_RAN">
             <not>
-                <indexExists indexName="idx_transfer_command_transfer_id" tableName="transfer_command"/>
+                <indexExists indexName="idx_transfer_command_status" tableName="transfer_commands"/>
             </not>
         </preConditions>
 
-        <createIndex indexName="idx_transfer_command_transfer_id" tableName="transfer_command">
-            <column name="transfer_id"/>
-        </createIndex>
-    </changeSet>
-
-    <changeSet id="00000004-5" author="minhtc">
-        <preConditions onFail="MARK_RAN">
-            <not>
-                <indexExists indexName="idx_transfer_command_status" tableName="transfer_command"/>
-            </not>
-        </preConditions>
-
-        <createIndex indexName="idx_transfer_command_status" tableName="transfer_command">
+        <createIndex indexName="idx_transfer_command_status" tableName="transfer_commands">
             <column name="status"/>
         </createIndex>
     </changeSet>

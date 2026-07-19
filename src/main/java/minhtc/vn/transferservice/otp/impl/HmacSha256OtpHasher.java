@@ -3,7 +3,7 @@ package minhtc.vn.transferservice.otp.impl;
 import jakarta.annotation.PostConstruct;
 import lombok.RequiredArgsConstructor;
 import minhtc.vn.transferservice.otp.OtpHasher;
-import minhtc.vn.transferservice.otp.OtpProperties;
+import minhtc.vn.transferservice.otp.TransferOtpProperties;
 import org.springframework.stereotype.Component;
 
 import javax.crypto.Mac;
@@ -21,7 +21,7 @@ public class HmacSha256OtpHasher implements OtpHasher {
 
     private static final String HMAC_ALGORITHM = "HmacSHA256";
 
-    private final OtpProperties otpProperties;
+    private final TransferOtpProperties otpProperties;
 
     private SecretKeySpec secretKey;
 

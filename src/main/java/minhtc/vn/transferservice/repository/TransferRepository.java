@@ -1,13 +1,18 @@
 package minhtc.vn.transferservice.repository;
 
+import jakarta.persistence.LockModeType;
 import minhtc.vn.transferservice.domain.Transfer;
+import minhtc.vn.transferservice.enums.TransferStatus;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
 import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.data.jpa.repository.JpaSpecificationExecutor;
+import org.springframework.data.jpa.repository.Lock;
 import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
 
+import java.math.BigDecimal;
+import java.time.LocalDateTime;
 import java.util.Collection;
 import java.util.List;
 import java.util.Optional;
@@ -43,7 +48,7 @@ public interface TransferRepository
     @Query(
             value = """
             select *
-            from transfer
+            from transfers
             where status in (:statuses)
               and next_retry_at <= now()
             order by next_retry_at asc, created_at asc
@@ -55,5 +60,51 @@ public interface TransferRepository
     List<Transfer> findRecoverableTransfersForUpdate(
             @Param("statuses") Collection<String> statuses,
             @Param("limit") int limit
+    );
+
+    /**
+     * Pessimistic write lock bảo đảm hai luồng không đồng thời
+     * chuyển trạng thái của cùng một Transfer.
+     */
+    @Lock(LockModeType.PESSIMISTIC_WRITE)
+    @Query("""
+            select t
+            from Transfer t
+            where t.id = :transferId
+            """)
+    Optional<Transfer> findByIdForUpdate(
+            @Param("transferId") UUID transferId
+    );
+
+
+    Optional<Transfer> findBySourceOwnerKeycloakUserIdAndRequestIdempotencyKey(
+            UUID sourceOwnerKeycloakUserId,
+            UUID requestIdempotencyKey
+    );
+
+    @Query("""
+        select coalesce(sum(t.amount), 0)
+        from Transfer t
+        where t.sourceOwnerKeycloakUserId = :ownerKeycloakUserId
+          and t.currency = :currency
+          and t.status in :statuses
+          and t.createdAt >= :startOfDay
+          and t.createdAt < :endOfDay
+        """)
+    BigDecimal sumAmountForDailyLimit(
+            @Param("ownerKeycloakUserId")
+            UUID ownerKeycloakUserId,
+
+            @Param("currency")
+            String currency,
+
+            @Param("statuses")
+            List<TransferStatus> statuses,
+
+            @Param("startOfDay")
+            LocalDateTime startOfDay,
+
+            @Param("endOfDay")
+            LocalDateTime endOfDay
     );
 }

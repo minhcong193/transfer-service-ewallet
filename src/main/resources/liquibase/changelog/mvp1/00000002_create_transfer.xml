@@ -8,11 +8,12 @@
     <changeSet id="00000002-1" author="minhtc">
         <preConditions onFail="MARK_RAN">
             <not>
-                <tableExists tableName="transfer"/>
+                <tableExists tableName="transfers"/>
             </not>
         </preConditions>
 
-        <createTable tableName="transfer">
+        <createTable tableName="transfers">
+            <!-- BaseEntity fields -->
             <column name="id" type="${uuidType}">
                 <constraints primaryKey="true" nullable="false"/>
             </column>
@@ -24,147 +25,137 @@
             </column>
             <column name="version" type="bigint"/>
 
-            <column name="transfer_code" type="varchar(100)">
+            <!-- Core transfer data -->
+            <column name="transfer_code" type="varchar(50)">
                 <constraints nullable="false"/>
             </column>
-
             <column name="source_wallet_id" type="${uuidType}">
                 <constraints nullable="false"/>
             </column>
             <column name="target_wallet_id" type="${uuidType}">
                 <constraints nullable="false"/>
             </column>
-
             <column name="source_owner_keycloak_user_id" type="${uuidType}">
                 <constraints nullable="false"/>
             </column>
             <column name="target_owner_keycloak_user_id" type="${uuidType}">
                 <constraints nullable="false"/>
             </column>
-
-            <column name="target_display_name_snapshot" type="varchar(255)"/>
-
             <column name="amount" type="decimal(19,4)">
                 <constraints nullable="false"/>
             </column>
-            <column name="currency" type="varchar(50)">
+            <column name="currency" type="varchar(3)">
                 <constraints nullable="false"/>
             </column>
-            <column name="description" type="varchar(500)"/>
-
+            <column name="description" type="varchar(255)"/>
             <column name="status" type="varchar(50)">
                 <constraints nullable="false"/>
             </column>
 
-            <column name="create_idempotency_key" type="varchar(255)">
+            <!-- Idempotency and Tracing -->
+            <column name="request_idempotency_key" type="${uuidType}">
                 <constraints nullable="false"/>
             </column>
-            <column name="request_hash" type="varchar(255)">
+            <column name="request_hash" type="varchar(64)">
                 <constraints nullable="false"/>
             </column>
-            <column name="correlation_id" type="varchar(100)"/>
+            <column name="correlation_id" type="${uuidType}"/>
 
+            <!-- OTP information -->
             <column name="otp_challenge_id" type="${uuidType}"/>
-            <column name="source_reservation_id" type="${uuidType}"/>
-
-            <column name="source_reserve_command_id" type="${uuidType}"/>
-            <column name="target_credit_command_id" type="${uuidType}"/>
-            <column name="source_finalize_command_id" type="${uuidType}"/>
-            <column name="source_release_command_id" type="${uuidType}"/>
-
-            <column name="failure_code" type="varchar(100)"/>
-            <column name="failure_message" type="varchar(1000)"/>
-
-            <column name="compensation_attempts" type="int" defaultValueNumeric="0"/>
-            <column name="next_retry_at" type="${dateTimeType}"/>
-
             <column name="otp_expires_at" type="${dateTimeType}"/>
+            <column name="otp_verified_at" type="${dateTimeType}"/>
+
+            <!-- Wallet command IDs -->
+            <column name="source_reserve_command_id" type="${uuidType}">
+                <constraints nullable="false"/>
+            </column>
+            <column name="target_credit_command_id" type="${uuidType}">
+                <constraints nullable="false"/>
+            </column>
+            <column name="source_finalize_command_id" type="${uuidType}">
+                <constraints nullable="false"/>
+            </column>
+            <column name="source_release_command_id" type="${uuidType}">
+                <constraints nullable="false"/>
+            </column>
+
+            <!-- Wallet command results -->
+            <column name="source_reservation_id" type="${uuidType}"/>
+            <column name="source_reserve_transaction_id" type="${uuidType}"/>
+            <column name="target_credit_transaction_id" type="${uuidType}"/>
+            <column name="source_finalize_transaction_id" type="${uuidType}"/>
+            <column name="source_release_transaction_id" type="${uuidType}"/>
+
+            <!-- Business milestone timestamps -->
+            <column name="source_reserved_at" type="${dateTimeType}"/>
+            <column name="target_credited_at" type="${dateTimeType}"/>
+            <column name="source_finalized_at" type="${dateTimeType}"/>
             <column name="completed_at" type="${dateTimeType}"/>
             <column name="compensated_at" type="${dateTimeType}"/>
+            <column name="cancelled_at" type="${dateTimeType}"/>
+            <column name="source_released_at" type="${dateTimeType}"/>
+
+            <!-- Terminal business failure -->
+            <column name="failure_code" type="varchar(100)"/>
+            <column name="failure_message" type="varchar(500)"/>
+
+            <!-- Recovery and compensation -->
+            <column name="recovery_attempts" type="int" defaultValueNumeric="0">
+                <constraints nullable="false"/>
+            </column>
+            <column name="compensation_attempts" type="int" defaultValueNumeric="0">
+                <constraints nullable="false"/>
+            </column>
+            <column name="next_retry_at" type="${dateTimeType}"/>
+            <column name="last_error_code" type="varchar(100)"/>
+            <column name="last_error_message" type="varchar(500)"/>
         </createTable>
     </changeSet>
 
+    <!-- Unique Constraints -->
     <changeSet id="00000002-2" author="minhtc">
-        <preConditions onFail="MARK_RAN">
-            <not>
-                <indexExists indexName="uk_transfer_code" tableName="transfer"/>
-            </not>
-        </preConditions>
-
-        <addUniqueConstraint
-                tableName="transfer"
-                columnNames="transfer_code"
-                constraintName="uk_transfer_code"/>
+        <addUniqueConstraint tableName="transfers" columnNames="transfer_code" constraintName="uk_transfers_transfer_code"/>
+        <addUniqueConstraint tableName="transfers" columnNames="source_owner_keycloak_user_id, request_idempotency_key" constraintName="uk_transfers_owner_idempotency"/>
     </changeSet>
 
+    <!-- Indexes -->
     <changeSet id="00000002-3" author="minhtc">
-        <preConditions onFail="MARK_RAN">
-            <not>
-                <indexExists indexName="uk_transfer_owner_idempotency" tableName="transfer"/>
-            </not>
-        </preConditions>
-
-        <addUniqueConstraint
-                tableName="transfer"
-                columnNames="source_owner_keycloak_user_id, create_idempotency_key"
-                constraintName="uk_transfer_owner_idempotency"/>
-    </changeSet>
-
-    <changeSet id="00000002-4" author="minhtc">
-        <preConditions onFail="MARK_RAN">
-            <not>
-                <indexExists indexName="idx_transfer_status" tableName="transfer"/>
-            </not>
-        </preConditions>
-
-        <createIndex indexName="idx_transfer_status" tableName="transfer">
-            <column name="status"/>
+        <createIndex indexName="idx_transfers_source_owner_created_at" tableName="transfers">
+            <column name="source_owner_keycloak_user_id"/>
+            <column name="created_at"/>
         </createIndex>
-    </changeSet>
-
-    <changeSet id="00000002-5" author="minhtc">
-        <preConditions onFail="MARK_RAN">
-            <not>
-                <indexExists indexName="idx_transfer_correlation_id" tableName="transfer"/>
-            </not>
-        </preConditions>
-
-        <createIndex indexName="idx_transfer_correlation_id" tableName="transfer">
+        <createIndex indexName="idx_transfers_target_owner_created_at" tableName="transfers">
+            <column name="target_owner_keycloak_user_id"/>
+            <column name="created_at"/>
+        </createIndex>
+        <createIndex indexName="idx_transfers_source_wallet_created_at" tableName="transfers">
+            <column name="source_wallet_id"/>
+            <column name="created_at"/>
+        </createIndex>
+        <createIndex indexName="idx_transfers_target_wallet_created_at" tableName="transfers">
+            <column name="target_wallet_id"/>
+            <column name="created_at"/>
+        </createIndex>
+        <createIndex indexName="idx_transfers_status_next_retry" tableName="transfers">
+            <column name="status"/>
+            <column name="next_retry_at"/>
+            <column name="updated_at"/>
+        </createIndex>
+        <createIndex indexName="idx_transfers_correlation_id" tableName="transfers">
             <column name="correlation_id"/>
         </createIndex>
     </changeSet>
 
-    <changeSet id="00000002-6" author="minhtc">
-        <preConditions onFail="MARK_RAN">
-            <not>
-                <indexExists indexName="idx_transfer_next_retry_at" tableName="transfer"/>
-            </not>
-        </preConditions>
-
-        <createIndex indexName="idx_transfer_next_retry_at" tableName="transfer">
-            <column name="next_retry_at"/>
-        </createIndex>
-    </changeSet>
-
-    <changeSet id="00000002-7" author="minhtc">
-        <preConditions onFail="MARK_RAN">
-            <tableExists tableName="transfer"/>
-        </preConditions>
-
+    <!-- Check Constraints -->
+    <changeSet id="00000002-4" author="minhtc">
         <sql>
-            ALTER TABLE transfer
+            ALTER TABLE transfers
             ADD CONSTRAINT ck_transfer_amount_positive
             CHECK (amount > 0);
         </sql>
-    </changeSet>
-
-    <changeSet id="00000002-8" author="minhtc">
-        <preConditions onFail="MARK_RAN">
-            <tableExists tableName="transfer"/>
-        </preConditions>
-
         <sql>
-            ALTER TABLE transfer
+            ALTER TABLE transfers
             ADD CONSTRAINT ck_transfer_wallet_not_same
             CHECK (source_wallet_id &lt;&gt; target_wallet_id);
         </sql>

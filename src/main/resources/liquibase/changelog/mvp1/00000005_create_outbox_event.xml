@@ -8,11 +8,12 @@
     <changeSet id="00000005-1" author="minhtc">
         <preConditions onFail="MARK_RAN">
             <not>
-                <tableExists tableName="outbox_event"/>
+                <tableExists tableName="outbox_events"/>
             </not>
         </preConditions>
 
-        <createTable tableName="outbox_event">
+        <createTable tableName="outbox_events">
+            <!-- BaseEntity fields -->
             <column name="id" type="${uuidType}">
                 <constraints primaryKey="true" nullable="false"/>
             </column>
@@ -24,70 +25,70 @@
             </column>
             <column name="version" type="bigint"/>
 
-            <column name="aggregate_type" type="varchar(100)">
+            <!-- OutboxEvent specific fields -->
+            <column name="event_id" type="${uuidType}">
                 <constraints nullable="false"/>
             </column>
-
+            <column name="aggregate_type" type="varchar(50)">
+                <constraints nullable="false"/>
+            </column>
             <column name="aggregate_id" type="${uuidType}">
                 <constraints nullable="false"/>
             </column>
-
             <column name="event_type" type="varchar(100)">
                 <constraints nullable="false"/>
             </column>
-
             <column name="payload" type="jsonb">
                 <constraints nullable="false"/>
             </column>
-
-            <column name="status" type="varchar(50)">
+            <column name="correlation_id" type="${uuidType}"/>
+            <column name="status" type="varchar(30)">
                 <constraints nullable="false"/>
             </column>
-
             <column name="retry_count" type="int" defaultValueNumeric="0">
                 <constraints nullable="false"/>
             </column>
-
             <column name="next_retry_at" type="${dateTimeType}"/>
+            <column name="processing_started_at" type="${dateTimeType}"/>
             <column name="published_at" type="${dateTimeType}"/>
+            <column name="last_error" type="varchar(1000)"/>
         </createTable>
     </changeSet>
 
     <changeSet id="00000005-2" author="minhtc">
         <preConditions onFail="MARK_RAN">
             <not>
-                <indexExists indexName="idx_outbox_event_status_next_retry_at" tableName="outbox_event"/>
+                <indexExists indexName="uk_outbox_events_event_id" tableName="outbox_events"/>
             </not>
         </preConditions>
-
-        <createIndex indexName="idx_outbox_event_status_next_retry_at" tableName="outbox_event">
-            <column name="status"/>
-            <column name="next_retry_at"/>
-        </createIndex>
+        <addUniqueConstraint
+                tableName="outbox_events"
+                columnNames="event_id"
+                constraintName="uk_outbox_events_event_id"/>
     </changeSet>
 
     <changeSet id="00000005-3" author="minhtc">
         <preConditions onFail="MARK_RAN">
             <not>
-                <indexExists indexName="idx_outbox_event_aggregate" tableName="outbox_event"/>
+                <indexExists indexName="idx_outbox_events_status_next_retry" tableName="outbox_events"/>
             </not>
         </preConditions>
-
-        <createIndex indexName="idx_outbox_event_aggregate" tableName="outbox_event">
-            <column name="aggregate_type"/>
-            <column name="aggregate_id"/>
+        <createIndex indexName="idx_outbox_events_status_next_retry" tableName="outbox_events">
+            <column name="status"/>
+            <column name="next_retry_at"/>
+            <column name="created_at"/>
         </createIndex>
     </changeSet>
 
     <changeSet id="00000005-4" author="minhtc">
         <preConditions onFail="MARK_RAN">
             <not>
-                <indexExists indexName="idx_outbox_event_event_type" tableName="outbox_event"/>
+                <indexExists indexName="idx_outbox_events_aggregate" tableName="outbox_events"/>
             </not>
         </preConditions>
-
-        <createIndex indexName="idx_outbox_event_event_type" tableName="outbox_event">
-            <column name="event_type"/>
+        <createIndex indexName="idx_outbox_events_aggregate" tableName="outbox_events">
+            <column name="aggregate_type"/>
+            <column name="aggregate_id"/>
         </createIndex>
     </changeSet>
 

@@ -14,7 +14,7 @@ public record CreateTransferRequest(
         BigDecimal amount,
 
         @NotBlank
-        @Pattern(regexp = "VND")
+        @Pattern(regexp = "^[A-Z]{3}$")
         String currency,
 
         @Size(max = 255)

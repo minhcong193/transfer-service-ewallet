@@ -8,6 +8,7 @@ import java.util.UUID;
 public class WalletClientTimeoutException extends RuntimeException {
 
     private final UUID commandId;
+
     private final String operation;
 
     public WalletClientTimeoutException(
@@ -16,8 +17,10 @@ public class WalletClientTimeoutException extends RuntimeException {
             Throwable cause
     ) {
         super(
-                "Wallet Service timeout while processing operation: "
-                        + operation,
+                "Wallet Service request timed out. operation="
+                        + operation
+                        + ", commandId="
+                        + commandId,
                 cause
         );
 

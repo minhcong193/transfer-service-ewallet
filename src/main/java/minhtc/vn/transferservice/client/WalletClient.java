@@ -1,5 +1,6 @@
 package minhtc.vn.transferservice.client;
 
+import minhtc.vn.transferservice.dto.integration.wallet.*;
 import minhtc.vn.transferservice.dto.request.*;
 import minhtc.vn.transferservice.dto.response.*;
 

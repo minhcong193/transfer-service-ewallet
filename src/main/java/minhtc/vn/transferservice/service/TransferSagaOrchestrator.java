@@ -2,7 +2,7 @@ package minhtc.vn.transferservice.service;
 
 import minhtc.vn.transferservice.dto.command.ConfirmTransferCommand;
 import minhtc.vn.transferservice.dto.command.CreateTransferCommand;
-import minhtc.vn.transferservice.dto.response.TransferResponse;
+import minhtc.vn.transferservice.dto.transfer.TransferResponse;
 
 import java.util.UUID;
 

@@ -1,26 +1,30 @@
 package minhtc.vn.transferservice.service;
 
-import minhtc.vn.transferservice.dto.response.TransferResponse;
-import minhtc.vn.transferservice.dto.response.TransferSummaryResponse;
-import minhtc.vn.transferservice.enums.TransferDirection;
-import minhtc.vn.transferservice.enums.TransferStatus;
+import minhtc.vn.transferservice.dto.transfer.*;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
+import org.springframework.security.oauth2.jwt.Jwt;
 
+import java.util.List;
 import java.util.UUID;
 
 public interface TransferQueryService {
 
-    TransferResponse getTransfer(UUID transferId);
-
     Page<TransferSummaryResponse> getMyTransfers(
-            TransferDirection direction,
-            TransferStatus status,
-            Pageable pageable
-    );
-
-    Page<TransferResponse> searchTransfers(
+            Jwt jwt,
             TransferSearchCriteria criteria,
             Pageable pageable
     );
+
+    TransferResponse getMyTransferById(
+            Jwt jwt,
+            UUID transferId
+    );
+
+    List<TransferStatusHistoryResponse> getStatusHistory(
+            Jwt jwt,
+            UUID transferId
+    );
+
+    TransferResponse getInternalTransfer(UUID transferId);
 }

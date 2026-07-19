@@ -14,6 +14,24 @@ spring:
       connection-timeout: 30000
       idle-timeout: 600000
       max-lifetime: 1800000
+  data:
+    redis:
+      host: ${REDIS_HOST:redis-ewallet.ewallet.svc.cluster.local}
+      port: ${REDIS_PORT:6379}
+      password: ${REDIS_PASSWORD:}
+      database: ${REDIS_DATABASE:0}
+
+      connect-timeout: 3s
+      timeout: 3s
+
+      lettuce:
+        pool:
+          enabled: true
+          max-active: 16
+          max-idle: 8
+          min-idle: 2
+          max-wait: 2s
+          time-between-eviction-runs: 30s
   jpa:
     # In câu lệnh SQL ra console để debug
     show-sql: true
@@ -66,6 +84,17 @@ spring:
         jwt:
           issuer-uri: ${KEYCLOAK_ISSUER_URI:https://auth.minhtc.io.vn/realms/ewallet}
           jwk-set-uri: ${KEYCLOAK_JWK_SET_URI:https://auth.minhtc.io.vn/realms/ewallet/protocol/openid-connect/certs}
+      client:
+        registration:
+          wallet-service:
+            provider: keycloak
+            client-id: wallet-service
+            client-secret: ${KEYCLOAK_WALLET_SERVICE_CLIENT_SECRET}
+            authorization-grant-type: client_credentials
+
+        provider:
+          keycloak:
+            token-uri: https://keycloak.minhtc.io.vn/realms/ewallet/protocol/openid-connect/token
 
 app:
   kafka:
@@ -77,19 +106,33 @@ app:
     secret-key: ${R2_SECRET_ACCESS_KEY}
     region: "auto" # Mặc dù R2 không có region, SDK vẫn cần giá trị này
     bucket-name: "ewallet-data"
-  otp:
-    ttl: 5m
-    max-attempts: 5
-    resend-cooldown: 60s
-    max-resends: 3
-    daily-limit: 20
-    hmac-secret: ${OTP_HMAC_SECRET}
   clients:
     wallet:
       base-url: ${WALLET_SERVICE_URI:http://wallet-service.ewallet.svc.cluster.local:8080}
       connect-timeout: 3s
       read-timeout: 10s
-      service-token: ${WALLET_SERVICE_TOKEN:}
+  transfer:
+    limits:
+      min-amount: 1000.0000
+      max-amount: 20000000.0000
+      daily-outgoing-limit: 50000000.0000
+    otp:
+      ttl: 5m
+      record-ttl: 24h
+      resend-cooldown: 60s
+      max-attempts: 5
+      max-resends: 3
+      max-daily-otp: 10
+      hmac-secret: ${OTP_HMAC_SECRET}
+    redis:
+      key-prefix: transfer-service
+      command-timeout: 3s
+    recovery:
+      batch-size: 20
+      retry-delay: 30s
+      processing-lease: 2m
+      max-recovery-attempts: 10
+      max-compensation-attempts: 20
 logging:
   level:
     root: INFO
@@ -113,4 +156,6 @@ management:
     readinessstate:
       enabled: true
     livenessstate:
+      enabled: true
+    redis:
       enabled: true

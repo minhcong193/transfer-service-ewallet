@@ -5,7 +5,7 @@ import jakarta.validation.constraints.Pattern;
 
 public record ConfirmTransferRequest(
         @NotBlank
-        @Pattern(regexp = "\\d{6}")
+        @Pattern(regexp = "^\\d{6}$")
         String otp
 ) {
 }

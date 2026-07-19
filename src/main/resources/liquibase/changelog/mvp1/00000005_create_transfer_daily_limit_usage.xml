@@ -1,0 +1,67 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<databaseChangeLog
+        xmlns="http://www.liquibase.org/xml/ns/dbchangelog"
+        xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+        xsi:schemaLocation="http://www.liquibase.org/xml/ns/dbchangelog
+        http://www.liquibase.org/xml/ns/dbchangelog/dbchangelog-latest.xsd">
+
+    <changeSet id="00000005-1" author="minhtc">
+        <preConditions onFail="MARK_RAN">
+            <not>
+                <tableExists tableName="transfer_daily_limit_usage"/>
+            </not>
+        </preConditions>
+
+        <createTable tableName="transfer_daily_limit_usage">
+            <column name="id" type="${uuidType}">
+                <constraints primaryKey="true" nullable="false"/>
+            </column>
+            <column name="created_at" type="${dateTimeType}">
+                <constraints nullable="false"/>
+            </column>
+            <column name="updated_at" type="${dateTimeType}">
+                <constraints nullable="false"/>
+            </column>
+            <column name="version" type="bigint"/>
+
+            <column name="owner_keycloak_user_id" type="${uuidType}">
+                <constraints nullable="false"/>
+            </column>
+            <column name="usage_date" type="date">
+                <constraints nullable="false"/>
+            </column>
+            <column name="reserved_amount" type="decimal(19,4)" defaultValueNumeric="0">
+                <constraints nullable="false"/>
+            </column>
+            <column name="completed_amount" type="decimal(19,4)" defaultValueNumeric="0">
+                <constraints nullable="false"/>
+            </column>
+        </createTable>
+    </changeSet>
+
+    <changeSet id="00000005-2" author="minhtc">
+        <preConditions onFail="MARK_RAN">
+            <not>
+                <indexExists indexName="uk_transfer_limit_owner_date" tableName="transfer_daily_limit_usage"/>
+            </not>
+        </preConditions>
+
+        <addUniqueConstraint
+                tableName="transfer_daily_limit_usage"
+                columnNames="owner_keycloak_user_id, usage_date"
+                constraintName="uk_transfer_limit_owner_date"/>
+    </changeSet>
+
+    <changeSet id="00000005-3" author="minhtc">
+        <preConditions onFail="MARK_RAN">
+            <not>
+                <indexExists indexName="idx_transfer_daily_limit_usage_owner" tableName="transfer_daily_limit_usage"/>
+            </not>
+        </preConditions>
+
+        <createIndex indexName="idx_transfer_daily_limit_usage_owner" tableName="transfer_daily_limit_usage">
+            <column name="owner_keycloak_user_id"/>
+        </createIndex>
+    </changeSet>
+
+</databaseChangeLog>

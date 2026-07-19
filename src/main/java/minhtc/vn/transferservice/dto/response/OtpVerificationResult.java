@@ -1,8 +1,13 @@
 package minhtc.vn.transferservice.dto.response;
 
+import minhtc.vn.transferservice.enums.OtpVerificationStatus;
+
 public record OtpVerificationResult(
-        boolean verified,
-        String failureCode,
+        OtpVerificationStatus status,
         int remainingAttempts
 ) {
+
+    public boolean verified() {
+        return status == OtpVerificationStatus.VERIFIED;
+    }
 }

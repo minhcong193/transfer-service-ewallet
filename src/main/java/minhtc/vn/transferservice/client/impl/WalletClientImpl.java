@@ -3,17 +3,26 @@ package minhtc.vn.transferservice.client.impl;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import minhtc.vn.transferservice.client.WalletClient;
-import minhtc.vn.transferservice.dto.*;
-import minhtc.vn.transferservice.dto.request.*;
-import minhtc.vn.transferservice.dto.response.*;
+import minhtc.vn.transferservice.dto.request.WalletSummary;
+import minhtc.vn.transferservice.dto.response.WalletCommandResult;
 import minhtc.vn.transferservice.exception.WalletClientException;
 import minhtc.vn.transferservice.exception.WalletClientTimeoutException;
+import minhtc.vn.transferservice.exception.WalletIntegrationException;
+import minhtc.vn.transferservice.dto.integration.wallet.CreditWalletRequest;
+import minhtc.vn.transferservice.dto.integration.wallet.FinalizeReservationRequest;
+import minhtc.vn.transferservice.dto.integration.wallet.ReleaseReservationRequest;
+import minhtc.vn.transferservice.dto.integration.wallet.ReserveWalletRequest;
+import minhtc.vn.transferservice.dto.integration.wallet.WalletCreditResult;
+import minhtc.vn.transferservice.dto.integration.wallet.WalletFinalizeResult;
+import minhtc.vn.transferservice.dto.integration.wallet.WalletReleaseResult;
+import minhtc.vn.transferservice.dto.integration.wallet.WalletReservationResult;
 import minhtc.vn.transferservice.util.RequestContextProvider;
 import org.springframework.http.HttpHeaders;
 import org.springframework.http.HttpStatusCode;
 import org.springframework.stereotype.Component;
 import org.springframework.web.client.ResourceAccessException;
 import org.springframework.web.client.RestClient;
+import org.springframework.web.client.RestClientException;
 import org.springframework.web.client.RestClientResponseException;
 
 import java.util.UUID;
@@ -26,9 +35,15 @@ public class WalletClientImpl implements WalletClient {
 
     private static final String CORRELATION_ID_HEADER =
             "X-Correlation-Id";
-    private static final String CLIENT_IP_HEADER = "X-Client-IP";
+
+    private static final String CLIENT_IP_HEADER =
+            "X-Client-IP";
+
+    private static final String COMMAND_ID_HEADER =
+            "X-Command-Id";
 
     private final RestClient walletRestClient;
+
     private final RequestContextProvider requestContextProvider;
 
     @Override
@@ -38,7 +53,10 @@ public class WalletClientImpl implements WalletClient {
                 "GET_WALLET",
                 () -> walletRestClient
                         .get()
-                        .uri("/internal/wallets/{walletId}", walletId)
+                        .uri(
+                                "/internal/wallets/{walletId}",
+                                walletId
+                        )
                         .headers(this::addCommonHeaders)
                         .retrieve()
                         .onStatus(
@@ -70,10 +88,12 @@ public class WalletClientImpl implements WalletClient {
                                 "/internal/wallets/{walletId}/reservations",
                                 walletId
                         )
-                        .headers(this::addCommonHeaders)
-                        .header(
-                                "X-Command-Id",
-                                request.commandId().toString()
+                        .headers(
+                                headers -> addCommandHeaders(
+                                        headers,
+                                        request.commandId(),
+                                        request.correlationId()
+                                )
                         )
                         .body(request)
                         .retrieve()
@@ -105,10 +125,12 @@ public class WalletClientImpl implements WalletClient {
                                 "/internal/wallets/{walletId}/credits",
                                 walletId
                         )
-                        .headers(this::addCommonHeaders)
-                        .header(
-                                "X-Command-Id",
-                                request.commandId().toString()
+                        .headers(
+                                headers -> addCommandHeaders(
+                                        headers,
+                                        request.commandId(),
+                                        request.correlationId()
+                                )
                         )
                         .body(request)
                         .retrieve()
@@ -138,17 +160,18 @@ public class WalletClientImpl implements WalletClient {
                 () -> walletRestClient
                         .post()
                         .uri(
-                                """
-                                /internal/wallets/{walletId}\
-                                /reservations/{reservationId}/finalize
-                                """.replaceAll("\\s+", ""),
+                                "/internal/wallets/{walletId}"
+                                        + "/reservations/{reservationId}"
+                                        + "/finalize",
                                 walletId,
                                 reservationId
                         )
-                        .headers(this::addCommonHeaders)
-                        .header(
-                                "X-Command-Id",
-                                request.commandId().toString()
+                        .headers(
+                                headers -> addCommandHeaders(
+                                        headers,
+                                        request.commandId(),
+                                        request.correlationId()
+                                )
                         )
                         .body(request)
                         .retrieve()
@@ -178,17 +201,18 @@ public class WalletClientImpl implements WalletClient {
                 () -> walletRestClient
                         .post()
                         .uri(
-                                """
-                                /internal/wallets/{walletId}\
-                                /reservations/{reservationId}/release
-                                """.replaceAll("\\s+", ""),
+                                "/internal/wallets/{walletId}"
+                                        + "/reservations/{reservationId}"
+                                        + "/release",
                                 walletId,
                                 reservationId
                         )
-                        .headers(this::addCommonHeaders)
-                        .header(
-                                "X-Command-Id",
-                                request.commandId().toString()
+                        .headers(
+                                headers -> addCommandHeaders(
+                                        headers,
+                                        request.commandId(),
+                                        request.correlationId()
+                                )
                         )
                         .body(request)
                         .retrieve()
@@ -207,7 +231,9 @@ public class WalletClientImpl implements WalletClient {
     }
 
     @Override
-    public WalletCommandResult getCommandStatus(UUID commandId) {
+    public WalletCommandResult getCommandStatus(
+            UUID commandId
+    ) {
         return execute(
                 commandId,
                 "GET_COMMAND_STATUS",
@@ -218,6 +244,10 @@ public class WalletClientImpl implements WalletClient {
                                 commandId
                         )
                         .headers(this::addCommonHeaders)
+                        .header(
+                                COMMAND_ID_HEADER,
+                                commandId.toString()
+                        )
                         .retrieve()
                         .onStatus(
                                 HttpStatusCode::isError,
@@ -236,19 +266,27 @@ public class WalletClientImpl implements WalletClient {
     private void addCommonHeaders(HttpHeaders headers) {
         String correlationId =
                 requestContextProvider.getCorrelationId();
-        String ipClient = requestContextProvider.getClientIp();
 
-        if (correlationId != null && !correlationId.isBlank()) {
+        String clientIp =
+                requestContextProvider.getClientIp();
+
+        if (
+                correlationId != null
+                        && !correlationId.isBlank()
+        ) {
             headers.set(
                     CORRELATION_ID_HEADER,
                     correlationId
             );
         }
 
-        if (ipClient != null && !ipClient.isBlank()) {
+        if (
+                clientIp != null
+                        && !clientIp.isBlank()
+        ) {
             headers.set(
                     CLIENT_IP_HEADER,
-                    ipClient
+                    clientIp
             );
         }
     }
@@ -270,12 +308,14 @@ public class WalletClientImpl implements WalletClient {
             }
 
             return result;
+
         } catch (WalletClientException exception) {
             throw exception;
+
         } catch (ResourceAccessException exception) {
             log.warn(
-                    "Wallet Service connection error. operation={}, "
-                            + "commandId={}, correlationId={}",
+                    "Wallet Service connection error. "
+                            + "operation={}, commandId={}, correlationId={}",
                     operation,
                     commandId,
                     requestContextProvider.getCorrelationId(),
@@ -287,10 +327,11 @@ public class WalletClientImpl implements WalletClient {
                     operation,
                     exception
             );
+
         } catch (RestClientResponseException exception) {
             log.warn(
-                    "Wallet Service HTTP error. operation={}, "
-                            + "commandId={}, status={}, response={}",
+                    "Wallet Service HTTP error. "
+                            + "operation={}, commandId={}, status={}, response={}",
                     operation,
                     commandId,
                     exception.getStatusCode(),
@@ -299,14 +340,15 @@ public class WalletClientImpl implements WalletClient {
 
             throw new WalletClientException(
                     exception.getStatusCode(),
-                    "WALLET_SERVICE_ERROR",
+                    mapErrorCode(exception.getStatusCode()),
                     "Wallet Service request failed",
                     exception
             );
+
         } catch (RuntimeException exception) {
             log.error(
-                    "Unexpected Wallet Service error. operation={}, "
-                            + "commandId={}",
+                    "Unexpected Wallet Service error. "
+                            + "operation={}, commandId={}",
                     operation,
                     commandId,
                     exception
@@ -326,7 +368,17 @@ public class WalletClientImpl implements WalletClient {
             String statusText,
             String defaultMessage
     ) {
-        String errorCode = switch (statusCode.value()) {
+        return new WalletClientException(
+                statusCode,
+                mapErrorCode(statusCode),
+                defaultMessage + ": " + statusText
+        );
+    }
+
+    private String mapErrorCode(
+            HttpStatusCode statusCode
+    ) {
+        return switch (statusCode.value()) {
             case 400 -> "WALLET_INVALID_REQUEST";
             case 401 -> "WALLET_INTERNAL_UNAUTHORIZED";
             case 403 -> "WALLET_INTERNAL_FORBIDDEN";
@@ -334,15 +386,32 @@ public class WalletClientImpl implements WalletClient {
             case 409 -> "WALLET_COMMAND_CONFLICT";
             case 422 -> "WALLET_COMMAND_REJECTED";
             case 429 -> "WALLET_RATE_LIMITED";
+
             default -> statusCode.is5xxServerError()
                     ? "WALLET_SERVICE_UNAVAILABLE"
                     : "WALLET_SERVICE_ERROR";
         };
+    }
 
-        return new WalletClientException(
-                statusCode,
-                errorCode,
-                defaultMessage + ": " + statusText
-        );
+    private void addCommandHeaders(
+            HttpHeaders headers,
+            UUID commandId,
+            UUID correlationId
+    ) {
+        addCommonHeaders(headers);
+
+        if (commandId != null) {
+            headers.set(
+                    COMMAND_ID_HEADER,
+                    commandId.toString()
+            );
+        }
+
+        if (correlationId != null) {
+            headers.set(
+                    CORRELATION_ID_HEADER,
+                    correlationId.toString()
+            );
+        }
     }
 }

@@ -34,8 +34,8 @@
             </column>
 
             <column name="reason_code" type="varchar(100)"/>
-            <column name="reason_message" type="varchar(1000)"/>
-            <column name="correlation_id" type="varchar(100)"/>
+            <column name="reason_message" type="varchar(500)"/>
+            <column name="correlation_id" type="${uuidType}"/>
         </createTable>
     </changeSet>
 
@@ -49,7 +49,7 @@
         <addForeignKeyConstraint
                 baseTableName="transfer_status_history"
                 baseColumnNames="transfer_id"
-                referencedTableName="transfer"
+                referencedTableName="transfers"
                 referencedColumnNames="id"
                 constraintName="fk_transfer_status_history_transfer"/>
     </changeSet>
@@ -57,24 +57,13 @@
     <changeSet id="00000003-3" author="minhtc">
         <preConditions onFail="MARK_RAN">
             <not>
-                <indexExists indexName="idx_transfer_status_history_transfer_id" tableName="transfer_status_history"/>
+                <indexExists indexName="idx_transfer_status_history_transfer" tableName="transfer_status_history"/>
             </not>
         </preConditions>
 
-        <createIndex indexName="idx_transfer_status_history_transfer_id" tableName="transfer_status_history">
+        <createIndex indexName="idx_transfer_status_history_transfer" tableName="transfer_status_history">
             <column name="transfer_id"/>
-        </createIndex>
-    </changeSet>
-
-    <changeSet id="00000003-4" author="minhtc">
-        <preConditions onFail="MARK_RAN">
-            <not>
-                <indexExists indexName="idx_transfer_status_history_correlation_id" tableName="transfer_status_history"/>
-            </not>
-        </preConditions>
-
-        <createIndex indexName="idx_transfer_status_history_correlation_id" tableName="transfer_status_history">
-            <column name="correlation_id"/>
+            <column name="created_at"/>
         </createIndex>
     </changeSet>
 

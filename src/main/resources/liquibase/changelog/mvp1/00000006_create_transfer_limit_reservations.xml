@@ -1,0 +1,86 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<databaseChangeLog
+        xmlns="http://www.liquibase.org/xml/ns/dbchangelog"
+        xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+        xsi:schemaLocation="http://www.liquibase.org/xml/ns/dbchangelog
+        http://www.liquibase.org/xml/ns/dbchangelog/dbchangelog-latest.xsd">
+
+    <changeSet id="00000006-1" author="minhtc">
+        <preConditions onFail="MARK_RAN">
+            <not>
+                <tableExists tableName="transfer_limit_reservations"/>
+            </not>
+        </preConditions>
+
+        <createTable tableName="transfer_limit_reservations">
+            <column name="id" type="${uuidType}">
+                <constraints primaryKey="true" nullable="false"/>
+            </column>
+            <column name="created_at" type="${dateTimeType}">
+                <constraints nullable="false"/>
+            </column>
+            <column name="updated_at" type="${dateTimeType}">
+                <constraints nullable="false"/>
+            </column>
+            <column name="version" type="bigint"/>
+
+            <column name="transfer_id" type="${uuidType}">
+                <constraints nullable="false"/>
+            </column>
+            <column name="owner_keycloak_user_id" type="${uuidType}">
+                <constraints nullable="false"/>
+            </column>
+            <column name="usage_date" type="date">
+                <constraints nullable="false"/>
+            </column>
+            <column name="amount" type="decimal(19,4)">
+                <constraints nullable="false"/>
+            </column>
+            <column name="status" type="varchar(30)">
+                <constraints nullable="false"/>
+            </column>
+        </createTable>
+    </changeSet>
+
+    <changeSet id="00000006-2" author="minhtc">
+        <preConditions onFail="MARK_RAN">
+            <not>
+                <indexExists indexName="uk_transfer_limit_reservation_transfer" tableName="transfer_limit_reservations"/>
+            </not>
+        </preConditions>
+
+        <addUniqueConstraint
+                tableName="transfer_limit_reservations"
+                columnNames="transfer_id"
+                constraintName="uk_transfer_limit_reservation_transfer"/>
+    </changeSet>
+
+    <changeSet id="00000006-3" author="minhtc">
+        <preConditions onFail="MARK_RAN">
+            <not>
+                <foreignKeyConstraintExists foreignKeyName="fk_limit_reservation_transfer"/>
+            </not>
+        </preConditions>
+
+        <addForeignKeyConstraint
+                baseTableName="transfer_limit_reservations"
+                baseColumnNames="transfer_id"
+                referencedTableName="transfers"
+                referencedColumnNames="id"
+                constraintName="fk_limit_reservation_transfer"/>
+    </changeSet>
+
+    <changeSet id="00000006-4" author="minhtc">
+        <preConditions onFail="MARK_RAN">
+            <not>
+                <indexExists indexName="idx_limit_reservation_owner_date" tableName="transfer_limit_reservations"/>
+            </not>
+        </preConditions>
+
+        <createIndex indexName="idx_limit_reservation_owner_date" tableName="transfer_limit_reservations">
+            <column name="owner_keycloak_user_id"/>
+            <column name="usage_date"/>
+        </createIndex>
+    </changeSet>
+
+</databaseChangeLog>

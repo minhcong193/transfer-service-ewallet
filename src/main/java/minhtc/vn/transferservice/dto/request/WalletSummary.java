@@ -6,7 +6,7 @@ import java.util.UUID;
 public record WalletSummary(
         UUID id,
         UUID ownerKeycloakUserId,
-        String ownerDisplayName,
+        String ownerUsername,
         BigDecimal availableBalance,
         BigDecimal reservedBalance,
         String currency,

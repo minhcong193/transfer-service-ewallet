@@ -8,6 +8,7 @@ import lombok.NoArgsConstructor;
 import minhtc.vn.transferservice.enums.TransferCommandStatus;
 import minhtc.vn.transferservice.enums.TransferCommandType;
 
+import java.time.LocalDateTime;
 import java.util.UUID;
 
 /**
@@ -60,15 +61,42 @@ public class TransferCommand extends BaseEntity {
      * VD: Lưu lại mã phiếu giam tiền do WalletService sinh ra.
      */
     @Column(columnDefinition = "jsonb")
-    private String responsePayload;
+    private String responseJson;
 
-    /**
-     * Mã lỗi nếu lệnh thất bại (VD: WALLET_NOT_FOUND, BALANCE_NOT_ENOUGH).
-     */
-    private String failureCode;
+    @Column(name = "response_status")
+    private Integer responseStatus;
 
-    /**
-     * Chi tiết lỗi (Message text) trả về từ service đích.
-     */
-    private String failureMessage;
+    @Column(name = "error_code", length = 100)
+    private String errorCode;
+
+    @Column(name = "error_message", length = 500)
+    private String errorMessage;
+
+    @Column(name = "owner_keycloak_user_id", nullable = false)
+    private UUID ownerKeycloakUserId;
+
+    public void markSucceeded(
+            UUID transferId,
+            String responseJson,
+            int responseStatus
+    ) {
+        this.transferId = transferId;
+        this.responseJson = responseJson;
+        this.responseStatus = responseStatus;
+        this.status = TransferCommandStatus.SUCCEEDED;
+        this.errorCode = null;
+        this.errorMessage = null;
+    }
+
+    public void markFailed(
+            String errorCode,
+            String errorMessage,
+            int responseStatus
+    ) {
+        this.status = TransferCommandStatus.FAILED;
+        this.errorCode = errorCode;
+        this.errorMessage = errorMessage;
+        this.responseStatus = responseStatus;
+
+    }
 }
