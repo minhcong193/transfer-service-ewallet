@@ -94,7 +94,7 @@ spring:
 
         provider:
           keycloak:
-            token-uri: https://keycloak.minhtc.io.vn/realms/ewallet/protocol/openid-connect/token
+            token-uri: https://auth.minhtc.io.vn/realms/ewallet/protocol/openid-connect/token
 
 app:
   kafka:
@@ -133,6 +133,33 @@ app:
       processing-lease: 2m
       max-recovery-attempts: 10
       max-compensation-attempts: 20
+  otp:
+    ttl: ${TRANSFER_OTP_TTL:5m}
+    max-attempts: ${TRANSFER_OTP_MAX_ATTEMPTS:5}
+    resend-cooldown: ${TRANSFER_OTP_RESEND_COOLDOWN:60s}
+    max-resend: ${TRANSFER_OTP_MAX_RESEND:3}
+    max-otp-per-user-per-day: ${TRANSFER_OTP_DAILY_LIMIT:10}
+    hash-secret: ${OTP_HMAC_SECRET}
+  mail:
+    brevo:
+      host: ${BREVO_SMTP_HOST:smtp-relay.brevo.com}
+      port: ${BREVO_SMTP_PORT:587}
+
+      # Login tại Brevo SMTP Settings
+      username: ${BREVO_SMTP_USERNAME:afe4e3001@smtp-brevo.com}
+
+      # SMTP key value, không phải password tài khoản Brevo
+      smtp-key: ${BREVO_SMTP_KEY}
+
+      # Sender đã verify trong Brevo
+      sender-email: ${BREVO_SENDER_EMAIL:notification@minhtc.io.vn}
+      sender-name: ${BREVO_SENDER_NAME:E-Wallet Application}
+
+      transfer-otp-subject: ${BREVO_TRANSFER_OTP_SUBJECT:Mã OTP xác nhận chuyển tiền}
+
+      connection-timeout-millis: 5000
+      read-timeout-millis: 10000
+      write-timeout-millis: 10000
 logging:
   level:
     root: INFO
