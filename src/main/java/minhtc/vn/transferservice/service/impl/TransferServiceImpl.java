@@ -4,10 +4,13 @@ import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import minhtc.vn.transferservice.client.WalletClient;
 import minhtc.vn.transferservice.domain.Transfer;
+import minhtc.vn.transferservice.dto.TransferTransitionContext;
 import minhtc.vn.transferservice.dto.request.CancelTransferRequest;
 import minhtc.vn.transferservice.dto.request.ConfirmTransferRequest;
 import minhtc.vn.transferservice.dto.request.CreateTransferRequest;
+import minhtc.vn.transferservice.dto.request.OtpChallenge;
 import minhtc.vn.transferservice.dto.request.WalletSummary;
+import minhtc.vn.transferservice.dto.response.OtpVerificationResult;
 import minhtc.vn.transferservice.dto.transfer.TransferResponse;
 import minhtc.vn.transferservice.enums.OtpVerificationStatus;
 import minhtc.vn.transferservice.enums.TransferStatus;
@@ -17,9 +20,7 @@ import minhtc.vn.transferservice.exception.TransferForbiddenException;
 import minhtc.vn.transferservice.exception.TransferNotFoundException;
 import minhtc.vn.transferservice.exception.TransferValidationException;
 import minhtc.vn.transferservice.mapper.TransferMapper;
-import minhtc.vn.transferservice.dto.request.OtpChallenge;
-import minhtc.vn.transferservice.dto.response.OtpVerificationResult;
-import minhtc.vn.transferservice.dto.TransferTransitionContext;
+import minhtc.vn.transferservice.otp.OtpRecipient;
 import minhtc.vn.transferservice.repository.TransferRepository;
 import minhtc.vn.transferservice.service.OtpService;
 import minhtc.vn.transferservice.service.TransferEventService;
@@ -28,14 +29,13 @@ import minhtc.vn.transferservice.service.TransferSagaService;
 import minhtc.vn.transferservice.service.TransferService;
 import minhtc.vn.transferservice.service.TransferStateMachineService;
 import minhtc.vn.transferservice.util.SecurityUtil;
+import org.springframework.security.oauth2.jwt.Jwt;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.support.TransactionTemplate;
-import org.springframework.security.oauth2.jwt.Jwt;
 
 import java.math.BigDecimal;
 import java.nio.charset.StandardCharsets;
 import java.security.MessageDigest;
-import java.time.LocalDateTime;
 import java.util.HexFormat;
 import java.util.Locale;
 import java.util.Objects;
@@ -68,23 +68,18 @@ public class TransferServiceImpl implements TransferService {
     private final TransactionTemplate transactionTemplate;
 
     /**
-     * Tạo transfer mới và gửi OTP.
+     * Dùng để lấy:
      *
-     * <p>Luồng:</p>
+     * - sub
+     * - email
+     * - email_verified
+     * - name/preferred_username
      *
-     * <pre>
-     * validate idempotency key
-     * validate amount/currency
-     * get source wallet
-     * get target wallet
-     * check ownership source wallet
-     * check transfer limit
-     * create Transfer status CREATED
-     * create OTP in Redis
-     * attach OTP challenge
-     * CREATED -> OTP_PENDING
-     * append outbox events
-     * </pre>
+     * trực tiếp từ JWT.
+     */
+
+    /**
+     * Tạo transfer mới và gửi OTP tới email lấy từ JWT.
      */
     @Override
     public TransferResponse createTransfer(
@@ -109,6 +104,12 @@ public class TransferServiceImpl implements TransferService {
                         normalizedCurrency
                 );
 
+        /*
+         * Idempotency replay phải được kiểm tra trước khi resolve email.
+         *
+         * Nếu transfer đã tồn tại thì trả lại kết quả cũ, không gửi thêm
+         * OTP và không phụ thuộc email claim hiện tại.
+         */
         Optional<Transfer> existing =
                 transferRepository
                         .findBySourceOwnerKeycloakUserIdAndRequestIdempotencyKey(
@@ -119,7 +120,10 @@ public class TransferServiceImpl implements TransferService {
         if (existing.isPresent()) {
             Transfer transfer = existing.get();
 
-            if (!transfer.getRequestHash().equals(requestHash)) {
+            if (!Objects.equals(
+                    transfer.getRequestHash(),
+                    requestHash
+            )) {
                 throw new IdempotencyKeyConflictException(
                         "Idempotency-Key was used with a different transfer request"
                 );
@@ -127,6 +131,18 @@ public class TransferServiceImpl implements TransferService {
 
             return transferMapper.toResponse(transfer);
         }
+
+        /*
+         * Email chỉ lấy từ JWT đã được Spring Security validate.
+         * Không nhận email từ request và không gọi User Service.
+         */
+        OtpRecipient otpRecipient = new OtpRecipient(ownerKeycloakUserId,
+                SecurityUtil.getEmail(), SecurityUtil.getFullName());
+
+        validateOtpRecipientOwner(
+                ownerKeycloakUserId,
+                otpRecipient
+        );
 
         WalletSummary sourceWallet =
                 walletClient.getWallet(
@@ -165,21 +181,33 @@ public class TransferServiceImpl implements TransferService {
                                     request.description(),
                                     requestIdempotencyKey,
                                     requestHash,
-                                    correlationIdFromJwt(jwt)
+                                    requestIdempotencyKey
                             );
 
                     /*
-                     * saveAndFlush để Hibernate sinh UUIDv7 từ BaseEntity.
+                     * saveAndFlush để Hibernate sinh UUIDv7 từ BaseEntity
+                     * trước khi tạo Redis OTP key.
                      */
                     created =
                             transferRepository.saveAndFlush(
                                     created
                             );
 
+                    /*
+                     * OtpService sẽ:
+                     *
+                     * 1. Sinh raw OTP.
+                     * 2. Hash và lưu Redis.
+                     * 3. Gọi OtpDeliveryPort.
+                     * 4. BrevoEmailOtpDeliveryAdapter gửi email SMTP.
+                     *
+                     * Email và tên người nhận nằm trong otpRecipient,
+                     * được lấy từ JWT.
+                     */
                     OtpChallenge challenge =
                             otpService.createOtp(
-                                    created.getId(),
-                                    ownerKeycloakUserId
+                                    created,
+                                    otpRecipient
                             );
 
                     created.attachOtpChallenge(
@@ -191,7 +219,7 @@ public class TransferServiceImpl implements TransferService {
                             created,
                             TransferStatus.OTP_PENDING,
                             TransferTransitionContext.user(
-                                    "OTP challenge created for transfer confirmation",
+                                    "OTP challenge created and sent to registered email",
                                     created.getCorrelationId()
                             )
                     );
@@ -215,9 +243,8 @@ public class TransferServiceImpl implements TransferService {
     /**
      * Xác nhận OTP và bắt đầu Saga.
      *
-     * <p>Sau khi OTP verified, method này commit transaction trước, sau đó
-     * mới gọi Saga để tránh giữ database transaction trong lúc gọi Wallet
-     * Service qua HTTP.</p>
+     * Sau khi OTP verified, transaction được commit trước khi gọi Saga,
+     * tránh giữ DB transaction khi gọi Wallet Service qua HTTP.
      */
     @Override
     public TransferResponse confirmTransfer(
@@ -227,6 +254,8 @@ public class TransferServiceImpl implements TransferService {
     ) {
         UUID ownerKeycloakUserId =
                 currentUserId(jwt);
+
+        validateConfirmRequest(request);
 
         Boolean shouldStartSaga =
                 transactionTemplate.execute(status -> {
@@ -242,6 +271,10 @@ public class TransferServiceImpl implements TransferService {
                         return false;
                     }
 
+                    /*
+                     * Trường hợp request confirm trước đó đã verify OTP
+                     * nhưng service chưa bắt đầu hoặc chưa hoàn tất Saga.
+                     */
                     if (transfer.getStatus()
                             == TransferStatus.OTP_VERIFIED) {
                         return true;
@@ -294,6 +327,9 @@ public class TransferServiceImpl implements TransferService {
                     return false;
                 });
 
+        /*
+         * Saga chạy sau khi transaction OTP đã commit.
+         */
         if (Boolean.TRUE.equals(shouldStartSaga)) {
             transferSagaService.execute(transferId);
         }
@@ -310,17 +346,21 @@ public class TransferServiceImpl implements TransferService {
     }
 
     /**
-     * Gửi lại OTP.
-     *
-     * <p>Chỉ cho phép resend trước khi OTP verified.</p>
+     * Gửi lại OTP tới email lấy từ JWT.
      */
     @Override
     public TransferResponse resendOtp(
             Jwt jwt,
             UUID transferId
     ) {
+        /*
+         * Resolver vừa lấy userId vừa lấy email/name từ JWT.
+         */
+        OtpRecipient otpRecipient = new OtpRecipient(UUID.fromString(SecurityUtil.getKeycloakUserId()),
+                SecurityUtil.getEmail(), SecurityUtil.getFullName());
+
         UUID ownerKeycloakUserId =
-                currentUserId(jwt);
+                otpRecipient.ownerKeycloakUserId();
 
         Transfer updated =
                 transactionTemplate.execute(status -> {
@@ -355,10 +395,14 @@ public class TransferServiceImpl implements TransferService {
                         );
                     }
 
+                    /*
+                     * Email/name lấy từ otpRecipient, không truyền email
+                     * từ request body.
+                     */
                     OtpChallenge challenge =
                             otpService.resendOtp(
-                                    transfer.getId(),
-                                    ownerKeycloakUserId
+                                    transfer,
+                                    otpRecipient
                             );
 
                     transfer.attachOtpChallenge(
@@ -370,7 +414,7 @@ public class TransferServiceImpl implements TransferService {
                             transfer,
                             TransferStatus.OTP_PENDING,
                             TransferTransitionContext.user(
-                                    "OTP resent for transfer confirmation",
+                                    "OTP resent to registered email",
                                     transfer.getCorrelationId()
                             )
                     );
@@ -389,9 +433,6 @@ public class TransferServiceImpl implements TransferService {
 
     /**
      * Hủy transfer trước khi OTP được xác nhận.
-     *
-     * <p>Không cho hủy khi tiền đã bắt đầu reserve/credit vì lúc đó phải
-     * đi theo Saga hoặc Recovery.</p>
      */
     @Override
     public TransferResponse cancelTransfer(
@@ -442,6 +483,14 @@ public class TransferServiceImpl implements TransferService {
                             )
                     );
 
+                    /*
+                     * Xóa challenge để OTP cũ không thể được dùng lại
+                     * sau khi transfer đã bị hủy.
+                     */
+                    otpService.deleteOtp(
+                            transfer.getId()
+                    );
+
                     transferEventService.appendTransferCancelled(
                             transfer.getId()
                     );
@@ -458,10 +507,8 @@ public class TransferServiceImpl implements TransferService {
             Transfer transfer,
             OtpVerificationResult result
     ) {
-        if (
-                result.status()
-                        == OtpVerificationStatus.EXPIRED
-        ) {
+        if (result.status()
+                == OtpVerificationStatus.EXPIRED) {
             stateMachineService.transitionManaged(
                     transfer,
                     TransferStatus.OTP_EXPIRED,
@@ -488,7 +535,15 @@ public class TransferServiceImpl implements TransferService {
         );
     }
 
-    private Transfer getForUpdate(UUID transferId) {
+    private Transfer getForUpdate(
+            UUID transferId
+    ) {
+        if (transferId == null) {
+            throw new TransferValidationException(
+                    "transferId is required"
+            );
+        }
+
         return transferRepository
                 .findByIdForUpdate(transferId)
                 .orElseThrow(
@@ -501,7 +556,26 @@ public class TransferServiceImpl implements TransferService {
     private void validateCreateRequest(
             CreateTransferRequest request
     ) {
-        if (request.sourceWalletId().equals(request.targetWalletId())) {
+        if (request == null) {
+            throw new TransferValidationException(
+                    "Transfer request is required"
+            );
+        }
+
+        if (request.sourceWalletId() == null) {
+            throw new TransferValidationException(
+                    "sourceWalletId is required"
+            );
+        }
+
+        if (request.targetWalletId() == null) {
+            throw new TransferValidationException(
+                    "targetWalletId is required"
+            );
+        }
+
+        if (request.sourceWalletId()
+                .equals(request.targetWalletId())) {
             throw new TransferValidationException(
                     "Source wallet and target wallet must be different"
             );
@@ -513,9 +587,24 @@ public class TransferServiceImpl implements TransferService {
             );
         }
 
-        if (request.amount().compareTo(BigDecimal.ZERO) <= 0) {
+        if (request.amount()
+                .compareTo(BigDecimal.ZERO) <= 0) {
             throw new TransferValidationException(
                     "amount must be greater than zero"
+            );
+        }
+    }
+
+    private void validateConfirmRequest(
+            ConfirmTransferRequest request
+    ) {
+        if (
+                request == null
+                        || request.otp() == null
+                        || request.otp().isBlank()
+        ) {
+            throw new TransferValidationException(
+                    "otp is required"
             );
         }
     }
@@ -546,15 +635,26 @@ public class TransferServiceImpl implements TransferService {
             );
         }
 
-        if (!request.sourceWalletId().equals(sourceWallet.id())) {
+        if (!request.sourceWalletId()
+                .equals(sourceWallet.id())) {
             throw new TransferValidationException(
                     "Source wallet response does not match request"
             );
         }
 
-        if (!request.targetWalletId().equals(targetWallet.id())) {
+        if (!request.targetWalletId()
+                .equals(targetWallet.id())) {
             throw new TransferValidationException(
                     "Target wallet response does not match request"
+            );
+        }
+
+        if (
+                sourceWallet.currency() == null
+                        || targetWallet.currency() == null
+        ) {
+            throw new TransferValidationException(
+                    "Wallet currency is missing"
             );
         }
 
@@ -571,9 +671,30 @@ public class TransferServiceImpl implements TransferService {
             Transfer transfer,
             UUID ownerKeycloakUserId
     ) {
-        if (!transfer.isOwnedBySource(ownerKeycloakUserId)) {
+        if (!transfer.isOwnedBySource(
+                ownerKeycloakUserId
+        )) {
             throw new TransferForbiddenException(
                     "You are not the owner of this transfer"
+            );
+        }
+    }
+
+    private void validateOtpRecipientOwner(
+            UUID expectedOwnerKeycloakUserId,
+            OtpRecipient recipient
+    ) {
+        if (recipient == null) {
+            throw new TransferForbiddenException(
+                    "OTP recipient cannot be resolved from JWT"
+            );
+        }
+
+        if (!expectedOwnerKeycloakUserId.equals(
+                recipient.ownerKeycloakUserId()
+        )) {
+            throw new TransferForbiddenException(
+                    "OTP recipient does not match authenticated user"
             );
         }
     }
@@ -601,35 +722,43 @@ public class TransferServiceImpl implements TransferService {
         }
     }
 
-    private UUID currentUserId(Jwt jwt) {
-        /*
-         * Nếu bạn đã có SecurityUtil.getKeycloakUserId() thì có thể thay
-         * toàn bộ method này bằng SecurityUtil.
-         */
-        String subject = jwt.getSubject();
+    private UUID currentUserId(
+            Jwt jwt
+    ) {
+        if (jwt == null) {
+            throw new TransferForbiddenException(
+                    "JWT authentication is required"
+            );
+        }
 
-        if (subject == null || subject.isBlank()) {
+        String subject =
+                jwt.getSubject();
+
+        if (
+                subject == null
+                        || subject.isBlank()
+        ) {
             throw new TransferForbiddenException(
                     "JWT subject is missing"
             );
         }
 
-        return UUID.fromString(subject);
+        try {
+            return UUID.fromString(subject);
+        } catch (IllegalArgumentException exception) {
+            throw new TransferForbiddenException(
+                    "JWT subject is not a valid UUID"
+            );
+        }
     }
 
-    private UUID correlationIdFromJwt(Jwt jwt) {
-        /*
-         * Nếu API Gateway truyền X-Correlation-Id vào RequestContext thì
-         * nên lấy từ RequestContextProvider thay vì JWT.
-         *
-         * Ở đây để null cũng được, vì Wallet request body/header vẫn có thể
-         * lấy từ request context.
-         */
-        return null;
-    }
-
-    private String normalizeCurrency(String currency) {
-        if (currency == null || currency.isBlank()) {
+    private String normalizeCurrency(
+            String currency
+    ) {
+        if (
+                currency == null
+                        || currency.isBlank()
+        ) {
             return DEFAULT_CURRENCY;
         }
 
@@ -641,11 +770,15 @@ public class TransferServiceImpl implements TransferService {
     private String normalizeCancelReason(
             CancelTransferRequest request
     ) {
-        if (request == null || request.reason() == null) {
+        if (
+                request == null
+                        || request.reason() == null
+        ) {
             return "Transfer cancelled by user";
         }
 
-        String reason = request.reason().trim();
+        String reason =
+                request.reason().trim();
 
         return reason.isBlank()
                 ? "Transfer cancelled by user"
@@ -665,11 +798,15 @@ public class TransferServiceImpl implements TransferService {
                         + "|"
                         + normalizedCurrency
                         + "|"
-                        + normalizeNullable(request.description());
+                        + normalizeNullable(
+                        request.description()
+                );
 
         try {
             MessageDigest digest =
-                    MessageDigest.getInstance("SHA-256");
+                    MessageDigest.getInstance(
+                            "SHA-256"
+                    );
 
             byte[] hash =
                     digest.digest(
@@ -678,7 +815,9 @@ public class TransferServiceImpl implements TransferService {
                             )
                     );
 
-            return HexFormat.of().formatHex(hash);
+            return HexFormat
+                    .of()
+                    .formatHex(hash);
 
         } catch (Exception exception) {
             throw new IllegalStateException(
@@ -688,7 +827,9 @@ public class TransferServiceImpl implements TransferService {
         }
     }
 
-    private String normalizeNullable(String value) {
+    private String normalizeNullable(
+            String value
+    ) {
         if (value == null) {
             return "";
         }
@@ -697,7 +838,8 @@ public class TransferServiceImpl implements TransferService {
     }
 
     private String generateTransferCode() {
-        return "TRF-" + UUID.randomUUID()
+        return "TRF-"
+                + UUID.randomUUID()
                 .toString()
                 .replace("-", "")
                 .substring(0, 16)

@@ -48,6 +48,7 @@ public class WalletClientImpl implements WalletClient {
 
     @Override
     public WalletSummary getWallet(UUID walletId) {
+        log.info("Calling Wallet Service to get wallet summary for walletId={}", walletId);
         return execute(
                 null,
                 "GET_WALLET",
@@ -79,6 +80,7 @@ public class WalletClientImpl implements WalletClient {
             UUID walletId,
             ReserveWalletRequest request
     ) {
+        log.info("Calling Wallet Service to reserve balance for walletId={}, request={}", walletId, request);
         return execute(
                 request.commandId(),
                 "RESERVE",
@@ -116,6 +118,7 @@ public class WalletClientImpl implements WalletClient {
             UUID walletId,
             CreditWalletRequest request
     ) {
+        log.info("Calling Wallet Service to credit balance for walletId={}, request={}", walletId, request);
         return execute(
                 request.commandId(),
                 "CREDIT",
@@ -154,6 +157,7 @@ public class WalletClientImpl implements WalletClient {
             UUID reservationId,
             FinalizeReservationRequest request
     ) {
+        log.info("Calling Wallet Service to finalize reservation for walletId={}, reservationId={}, request={}", walletId, reservationId, request);
         return execute(
                 request.commandId(),
                 "FINALIZE_RESERVATION",
@@ -195,6 +199,7 @@ public class WalletClientImpl implements WalletClient {
             UUID reservationId,
             ReleaseReservationRequest request
     ) {
+        log.info("Calling Wallet Service to release reservation for walletId={}, reservationId={}, request={}", walletId, reservationId, request);
         return execute(
                 request.commandId(),
                 "RELEASE_RESERVATION",
@@ -234,6 +239,7 @@ public class WalletClientImpl implements WalletClient {
     public WalletCommandResult getCommandStatus(
             UUID commandId
     ) {
+        log.info("Calling Wallet Service to get command status for commandId={}", commandId);
         return execute(
                 commandId,
                 "GET_COMMAND_STATUS",
@@ -307,6 +313,7 @@ public class WalletClientImpl implements WalletClient {
                 );
             }
 
+            log.info("Wallet operation successful. operation={}, commandId={}, result={}", operation, commandId, result);
             return result;
 
         } catch (WalletClientException exception) {

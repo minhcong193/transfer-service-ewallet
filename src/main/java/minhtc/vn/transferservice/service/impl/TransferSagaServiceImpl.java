@@ -5,6 +5,7 @@ import lombok.extern.slf4j.Slf4j;
 import minhtc.vn.transferservice.domain.Transfer;
 import minhtc.vn.transferservice.dto.TransferTransitionContext;
 import minhtc.vn.transferservice.enums.TransferStatus;
+import minhtc.vn.transferservice.enums.WalletFailureCode;
 import minhtc.vn.transferservice.enums.WalletReservationStatus;
 import minhtc.vn.transferservice.enums.WalletTransactionStatus;
 import minhtc.vn.transferservice.exception.InvalidTransferStateException;
@@ -783,19 +784,24 @@ public class TransferSagaServiceImpl
     private boolean isReserveSuccessful(
             WalletReservationResult result
     ) {
-        return result.failureCode() == null
+        return (result.failureCode() == null
+                || result.failureCode() == WalletFailureCode.NONE)
                 && result.reservationId() != null
                 && result.walletTransactionId() != null
                 && result.reservationStatus()
                 == WalletReservationStatus.HELD
-                && result.transactionStatus()
-                == WalletTransactionStatus.COMPLETED;
+                && (
+                result.transactionStatus()
+                        == WalletTransactionStatus.PENDING
+                        || result.transactionStatus()
+                        == WalletTransactionStatus.COMPLETED
+        );
     }
 
     private boolean isCreditSuccessful(
             WalletCreditResult result
     ) {
-        return result.failureCode() == null
+        return (result.failureCode() == null || result.failureCode() == WalletFailureCode.NONE)
                 && result.walletTransactionId() != null
                 && result.status() != null
                 && "COMPLETED".equalsIgnoreCase(
@@ -806,7 +812,7 @@ public class TransferSagaServiceImpl
     private boolean isFinalizeSuccessful(
             WalletFinalizeResult result
     ) {
-        return result.failureCode() == null
+        return (result.failureCode() == null || result.failureCode() == WalletFailureCode.NONE)
                 && result.walletTransactionId() != null
                 && result.reservationStatus()
                 == WalletReservationStatus.FINALIZED
@@ -817,7 +823,7 @@ public class TransferSagaServiceImpl
     private boolean isReleaseSuccessful(
             WalletReleaseResult result
     ) {
-        return result.failureCode() == null
+        return (result.failureCode() == null || result.failureCode() == WalletFailureCode.NONE)
                 && result.reservationStatus()
                 == WalletReservationStatus.RELEASED
                 && result.transactionStatus()

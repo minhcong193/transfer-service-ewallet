@@ -27,12 +27,6 @@ public interface TransferRepository
             String ownerId
     );
 
-    Optional<Transfer>
-    findBySourceOwnerKeycloakUserIdAndCreateIdempotencyKey(
-            String ownerId,
-            String idempotencyKey
-    );
-
     boolean existsByTransferCode(String transferCode);
 
     @Query("""
@@ -106,5 +100,22 @@ public interface TransferRepository
 
             @Param("endOfDay")
             LocalDateTime endOfDay
+    );
+
+    @Lock(LockModeType.PESSIMISTIC_WRITE)
+    @Query("""
+            select t
+            from Transfer t
+            where t.status in :statuses
+              and (
+                    t.nextRetryAt is null
+                    or t.nextRetryAt <= :now
+                  )
+            order by t.updatedAt asc
+            """)
+    List<Transfer> findDueForRecovery(
+            @Param("statuses") List<TransferStatus> statuses,
+            @Param("now") LocalDateTime now,
+            Pageable pageable
     );
 }

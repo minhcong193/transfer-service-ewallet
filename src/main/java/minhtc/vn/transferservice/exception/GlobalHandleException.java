@@ -2,9 +2,9 @@ package minhtc.vn.transferservice.exception;
 
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
-import minhtc.vn.walletservice.dto.response.BaseResponse;
-import minhtc.vn.walletservice.enums.MessageCode;
-import minhtc.vn.walletservice.service.LocaleService;
+import minhtc.vn.transferservice.dto.response.BaseResponse;
+import minhtc.vn.transferservice.enums.MessageCode;
+import minhtc.vn.transferservice.service.LocaleService;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.MethodArgumentNotValidException;
@@ -55,6 +55,17 @@ public class GlobalHandleException {
         return new ResponseEntity<>(BaseResponse.builder()
                 .message(message.toString())
                 .code(code)
+                .status(HttpStatus.BAD_REQUEST.value())
+                .build(),
+                HttpStatus.BAD_REQUEST);
+    }
+
+    @ExceptionHandler(TransferValidationException.class)
+    public ResponseEntity<BaseResponse> handleTransferValidationException(TransferValidationException e) {
+        log.warn("TransferValidationException: {}", e.getMessage());
+        return new ResponseEntity<>(BaseResponse.builder()
+                .code("TRANSFER_VALIDATION_ERROR") // Hoặc một mã lỗi cụ thể hơn nếu có
+                .message(e.getMessage())
                 .status(HttpStatus.BAD_REQUEST.value())
                 .build(),
                 HttpStatus.BAD_REQUEST);

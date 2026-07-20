@@ -1,7 +1,7 @@
 package minhtc.vn.transferservice.exception;
 
 import lombok.Data;
-import minhtc.vn.walletservice.enums.MessageCode;
+import minhtc.vn.transferservice.enums.MessageCode;
 
 @Data
 public class BadRequestException extends RuntimeException {
