@@ -3,6 +3,8 @@ package minhtc.vn.transferservice.domain;
 import jakarta.persistence.*;
 import lombok.*;
 import minhtc.vn.transferservice.enums.OutboxStatus;
+import org.hibernate.annotations.JdbcTypeCode;
+import org.hibernate.type.SqlTypes;
 
 import java.time.LocalDateTime;
 import java.util.Objects;
@@ -95,6 +97,7 @@ public class OutboxEvent extends BaseEntity {
     /**
      * JSON payload gửi lên Kafka.
      */
+    @JdbcTypeCode(SqlTypes.JSON)
     @Column(
             name = "payload",
             nullable = false,

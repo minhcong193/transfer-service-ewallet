@@ -5,8 +5,6 @@ import java.util.UUID;
 
 public record OtpChallenge(
         UUID challengeId,
-        UUID transferId,
-        LocalDateTime expiresAt,
-        LocalDateTime resendAvailableAt
+        LocalDateTime expiresAt
 ) {
 }

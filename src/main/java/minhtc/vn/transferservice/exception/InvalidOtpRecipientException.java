@@ -1,15 +1,15 @@
 package minhtc.vn.transferservice.exception;
 
-public class OtpDeliveryException
+public class InvalidOtpRecipientException
         extends RuntimeException {
 
-    public OtpDeliveryException(
+    public InvalidOtpRecipientException(
             String message
     ) {
         super(message);
     }
 
-    public OtpDeliveryException(
+    public InvalidOtpRecipientException(
             String message,
             Throwable cause
     ) {

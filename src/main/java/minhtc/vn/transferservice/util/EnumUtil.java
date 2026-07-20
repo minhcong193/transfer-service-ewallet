@@ -1,7 +1,7 @@
 package minhtc.vn.transferservice.util;
 
 import lombok.experimental.UtilityClass;
-import minhtc.vn.walletservice.exception.BadRequestException;
+import minhtc.vn.transferservice.exception.BadRequestException;
 
 @UtilityClass
 public class EnumUtil {
